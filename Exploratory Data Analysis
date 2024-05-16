@@ -1,0 +1,86 @@
+spark
+
+
+from pyspark.sql import SparkSession
+from pyspark.sql.functions import col, isnan, isnull, when, count, udf, min, max, mean, stddev
+sc.setLogLevel("ERROR")
+
+years = ["2022", "2023"]
+months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+
+for year in years:
+    for month in months:
+
+        bucket = f'my-bigdata-project-ah/'
+        filename = f'landing/yellow_tripdata_{year}-{month}.parquet'
+        file_path = f'gs://{bucket}/{filename}'
+        sdf = spark.read.parquet(file_path)
+        sdf.printSchema()
+        print(sdf.count())
+        variables = sdf.columns
+        missing_fields = sdf.select([count(when(col(c).isNull(), c)).alias(c) for c in sdf.columns])
+        missing_fields.show()
+        numeric_stats = sdf.describe().show()
+        sdf.groupBy("passenger_count").count().orderBy("passenger_count").show()
+        # List of numeric variables
+        numeric_vars = [
+            "passenger_count",
+            "trip_distance",
+            "RatecodeID",
+            "fare_amount",
+            "extra",
+            "mta_tax",
+            "tip_amount",
+            "tolls_amount",
+            "improvement_surcharge",
+            "total_amount",
+            "congestion_surcharge",
+            "airport_fee"
+        ]
+        # Calculate min, max, average, and standard deviation for all numeric variables
+        min_exprs = [min(col(c)).alias(f"{c}_min") for c in numeric_vars]
+        max_exprs = [max(col(c)).alias(f"{c}_max") for c in numeric_vars]
+        avg_exprs = [mean(col(c)).alias(f"{c}_avg") for c in numeric_vars]
+        stddev_exprs = [stddev(col(c)).alias(f"{c}_stddev") for c in numeric_vars]
+
+        stats = sdf.select(min_exprs + max_exprs + avg_exprs + stddev_exprs)
+        stats.show(vertical=True)
+        date_stats = sdf.select(
+            min("tpep_pickup_datetime").alias("pickup_min_date"),
+            max("tpep_pickup_datetime").alias("pickup_max_date"),
+            min("tpep_dropoff_datetime").alias("dropoff_min_date"),
+            max("tpep_dropoff_datetime").alias("dropoff_max_date")
+        )
+        date_stats.show()
+
+        import matplotlib.pyplot as plt
+        import seaborn as sns
+
+        # Convert the PySpark DataFrame to a Pandas DataFrame for plotting
+        df_pandas = sdf.sample(fraction=0.01).toPandas()  # Sampling for faster processing
+        # Histogram for passenger_count
+        plt.figure(figsize=(10, 6))
+        sns.histplot(df_pandas['passenger_count'], bins=10, kde=True)
+        plt.title('Distribution of Passenger Count')
+        plt.xlabel('Passenger Count')
+        plt.ylabel('Frequency')
+        plt.show()
+
+        # Histogram for trip_distance
+        plt.figure(figsize=(10, 6))
+        sns.histplot(df_pandas['trip_distance'], bins=20, kde=True)
+        plt.title('Distribution of Trip Distance')
+        plt.xlabel('Trip Distance')
+        plt.ylabel('Frequency')
+        plt.xlim(0, 200)
+        plt.ylim(0, 50000)
+
+        plt.show()
+
+        # Histogram for payment_type
+        plt.figure(figsize=(10, 6))
+        sns.countplot(x='payment_type', data=df_pandas)
+        plt.title('Distribution of Payment Type')
+        plt.xlabel('Payment Type')
+        plt.ylabel('Count')
+        plt.show()
