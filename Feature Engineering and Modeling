@@ -1,0 +1,52 @@
+from pyspark.sql import SparkSession
+from pyspark.ml import Pipeline
+from pyspark.ml.feature import StringIndexer, VectorAssembler, StandardScaler
+from pyspark.ml.regression import LinearRegression
+from pyspark.ml.evaluation import RegressionEvaluator
+from pyspark.ml.tuning import CrossValidator, ParamGridBuilder
+
+spark
+
+sdf = spark.read.parquet("gs://my-bigdata-project-ah/cleaned/yellow_tripdata_*.parquet")
+sdf = sdf.sample(fraction=0.1, withReplacement=False)
+trainingData, testData = sdf.randomSplit([0.70, 0.3], seed=42)
+
+indexer = StringIndexer(
+    inputCols=["pickup_location", "dropoff_location"],
+    outputCols=["pickup_location_index", "dropoff_location_index"]
+)
+
+assembler = VectorAssembler(
+    inputCols=["trip_distance", "pickup_location_index", "dropoff_location_index", "total_amount", "passenger_count"],
+    outputCol="features"
+)
+scaler = StandardScaler(inputCol="features", outputCol="scaled_features")
+lr = LinearRegression(featuresCol="scaled_features", labelCol="tip_amount")
+pipeline = Pipeline(stages= [indexer, assembler, scaler, lr])
+
+paramGrid = ParamGridBuilder() \
+    .addGrid(lr.regParam, [0.1, 0.01]) \
+    .addGrid(lr.fitIntercept, [True, False]) \
+    .addGrid(lr.elasticNetParam, [0.0, 0.5, 1.0]) \
+    .build()
+
+crossval = CrossValidator(estimator=pipeline,
+                          estimatorParamMaps=paramGrid,
+                          evaluator=RegressionEvaluator(labelCol="tip_amount", predictionCol="prediction", metricName="rmse"),
+                          numFolds=5) 
+
+cv_model = crossval.fit(trainingData)
+best_lr_model = cv_model.bestModel
+predictions = best_lr_model.transform(testData)
+evaluator = RegressionEvaluator(labelCol="tip_amount", predictionCol="prediction", metricName="rmse")
+rmse = evaluator.evaluate(predictions)
+
+print(f"Best Model RMSE: {rmse}")
+print(f"Best Model Parameters: {best_lr_model.extractParamMap()}")
+
+r2_evaluator = RegressionEvaluator(labelCol="tip_amount", predictionCol="prediction", metricName="r2")
+r2 = r2_evaluator.evaluate(predictions)
+print(f"Best Model R^2: {r2}")
+
+best_lr_model.save("gs://my-bigdata-project-ah/models/taxi_tip_best_lr_model")
+predictions.select("prediction").write.parquet("gs://my-bigdata-project-ah/trusted/predictions_tip_cv", mode='overwrite')
