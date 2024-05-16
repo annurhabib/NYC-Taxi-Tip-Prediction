@@ -1,0 +1,38 @@
+spark
+
+spark.sparkContext.setLogLevel("ERROR")
+
+from pyspark.sql.functions import mean, col
+years = ["2022", "2023"]
+months = ["01", "02", "03", "04", "05", "06", "07", "08", "09", "10", "11", "12"]
+
+for year in years:
+    for month in months:
+        # Define the path to the raw data and the path for the cleaned data
+        input_path = f"gs://my-bigdata-project-ah/landing/yellow_tripdata_{year}-{month}.parquet"
+        output_path = f"gs://my-bigdata-project-ah/cleaned/yellow_tripdata_{year}-{month}.parquet"
+
+        # Read the data from the /landing folder
+        sdf = spark.read.parquet(input_path)
+        # Remove records with missing data
+        df_cleaned = sdf.dropna()
+        data_cleaned = data_cleaned.filter(
+    (data_cleaned["passenger_count"] > 0) &
+    (data_cleaned["passenger_count"] <= 6) &
+    (data_cleaned["trip_distance"] >= 0) &
+    (data_cleaned["trip_distance"] <= 25) &
+    (data_cleaned["fare_amount"] >= 0) &
+    (data_cleaned["pickup_datetime"] < data_cleaned["dropoff_datetime"])
+)
+
+        # Rename columns and remove spaces from column names
+        for col_name in df_cleaned.columns:
+            new_col_name = col_name.replace(" ", "_").lower()
+            df_cleaned = df_cleaned.withColumnRenamed(col_name, new_col_name)
+
+        # Calculate the mean of the passenger_count column
+        mean_passenger_count = df_cleaned.select(mean(col("passenger_count"))).collect()[0][0]
+
+        # Fill in missing values in the passenger_count column with the mean
+        df_cleaned = df_cleaned.fillna({'passenger_count': mean_passenger_count})
+        df_cleaned.write.parquet(output_path, mode='overwrite')
