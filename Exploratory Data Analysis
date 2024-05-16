@@ -1,6 +1,5 @@
 spark
 
-
 from pyspark.sql import SparkSession
 from pyspark.sql.functions import col, isnan, isnull, when, count, udf, min, max, mean, stddev
 sc.setLogLevel("ERROR")
