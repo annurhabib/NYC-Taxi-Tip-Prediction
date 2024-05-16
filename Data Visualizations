@@ -1,0 +1,38 @@
+#Visualization 1: Distribution of Tip Amounts
+
+import matplotlib.pyplot as plt
+import seaborn as sns
+plt.figure(figsize=(10, 6))
+sns.histplot(sdf['tip_amount'], kde=True, bins=30)
+plt.title('Distribution of Tip Amounts')
+plt.xlabel('Tip Amount ($)')
+plt.ylabel('Frequency')
+plt.show()
+
+#Visualization 2: Actual vs. Predicted Tips
+
+plt.figure(figsize=(10, 6))
+plt.scatter(sdf['tip_amount'], sdf['prediction'], alpha=0.5)
+plt.title('Actual vs. Predicted Tips')
+plt.xlabel('Actual Tips ($)')
+plt.ylabel('Predicted Tips ($)')
+plt.plot([sdf['tip_amount'].min(), sdf['tip_amount'].max()], [sdf['tip_amount'].min(), sdf['tip_amount'].max()], 'k--', label = 'Ideal Prediction')
+plt.show()
+
+#Visualization 3: Relationship Between Trip Distance and Tip Amount
+
+plt.figure(figsize=(10, 6))
+sns.barplot(x='passenger_count', y='tip_amount', data=sdf)
+plt.title('Relationship Between Passenger Count and Tip Amount')
+plt.xlabel('Passenger Count')
+plt.ylabel('Tip Amount ($)')
+plt.show()
+
+#Visualization 4: Relationship Between Trip Distance and Tip Amount
+
+plt.figure(figsize=(10, 6))
+sns.scatterplot(x='trip_distance', y='tip_amount', data=sdf)
+plt.title('Relationship Between Trip Distance and Tip Amount')
+plt.xlabel('Trip Distance (miles)')
+plt.ylabel('Tip Amount ($)')
+plt.show()
